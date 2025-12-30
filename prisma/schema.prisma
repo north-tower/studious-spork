@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  plan      String   @default("free") // free, starter, professional, enterprise
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  comparisons Comparison[]
+}
+
+model Retailer {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  deliveryData DeliveryData[]
+}
+
+model Country {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String   @unique // ISO country code
+  createdAt DateTime @default(now())
+  deliveryData DeliveryData[]
+}
+
+model DeliveryData {
+  id                      String   @id @default(uuid())
+  retailerId              String
+  countryId               String
+  method                  String
+  cost                    String
+  duration                String
+  freeShippingThreshold   String?
+  carrier                 String?
+  additionalNotes         String?
+  dataSource              String   @default("web_search")
+  status                  String   @default("verified") // verified, partial_data, requires_verification
+  timestamp               DateTime @default(now())
+  
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  country  Country  @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  
+  @@unique([retailerId, countryId, method])
+  @@index([retailerId, countryId])
+}
+
+model Comparison {
+  id          String   @id @default(uuid())
+  userId      String
+  retailers   String[] // Array of retailer IDs
+  country     String
+  results     Json     // Store comparison results as JSON
+  createdAt   DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+}

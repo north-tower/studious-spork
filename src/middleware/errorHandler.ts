@@ -1,0 +1,43 @@
+import { Request, Response, NextFunction } from 'express';
+
+export interface AppError extends Error {
+  statusCode?: number;
+  status?: string;
+}
+
+export const errorHandler = (
+  err: AppError,
+  _req: Request,
+  res: Response,
+  _next: NextFunction
+): void => {
+  const statusCode = err.statusCode || 500;
+  const status = err.status || 'error';
+
+  res.status(statusCode).json({
+    status,
+    error: {
+      message: err.message || 'Internal server error',
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    },
+  });
+};
+
+export const notFoundHandler = (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void => {
+  const error: AppError = new Error(`Not found - ${req.originalUrl}`);
+  error.statusCode = 404;
+  next(error);
+};
+
+export const asyncHandler = (
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<any>
+) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+};
+

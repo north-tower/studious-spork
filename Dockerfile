@@ -14,7 +14,9 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Generate Prisma Client
+# Generate Prisma Client (DATABASE_URL not needed for generation, but prisma.config.ts requires it)
+# Using a dummy URL since we only need to generate the client, not connect to a database
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
 RUN npx prisma generate
 
 # Build TypeScript
@@ -50,6 +52,8 @@ COPY --chown=nodejs:nodejs docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
 # Generate Prisma Client in production image
+# Using dummy URL for build - actual DATABASE_URL will be provided by docker-compose at runtime
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
 RUN npx prisma generate
 
 # Switch to non-root user

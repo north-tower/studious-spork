@@ -11,8 +11,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-retailer_comparison}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # Expose PostgreSQL port (change 5433 to any available port if needed)
+    # Set POSTGRES_PORT in .env to override, or remove this section if external access not needed
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s

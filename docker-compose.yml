@@ -36,8 +36,10 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-retailer_comparison}?schema=public}
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    # Map host port to container port 3000
+    # Change HOST_PORT in .env if 3001 is also in use
     ports:
-      - "${PORT:-3000}:3000"
+      - "${HOST_PORT:-3001}:3000"
     depends_on:
       postgres:
         condition: service_healthy

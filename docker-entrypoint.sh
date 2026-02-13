@@ -5,24 +5,6 @@ echo "🚀 Starting Retailer Comparison Backend..."
 
 # Construct DATABASE_URL from individual variables if not already set
 if [ -z "$DATABASE_URL" ]; then
-  # URL encode function for password (handles special characters)
-  urlencode() {
-    local string="${1}"
-    local strlen=${#string}
-    local encoded=""
-    local pos c o
-
-    for (( pos=0 ; pos<strlen ; pos++ )); do
-      c=${string:$pos:1}
-      case "$c" in
-        [-_.~a-zA-Z0-9] ) o="${c}" ;;
-        * ) printf -v o '%%%02x' "'$c"
-      esac
-      encoded+="${o}"
-    done
-    echo "${encoded}"
-  }
-
   # Get individual components with defaults
   POSTGRES_USER=${POSTGRES_USER:-postgres}
   POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -30,8 +12,8 @@ if [ -z "$DATABASE_URL" ]; then
   POSTGRES_HOST=${POSTGRES_HOST:-postgres}
   POSTGRES_PORT=${POSTGRES_PORT:-5432}
 
-  # URL encode the password to handle special characters
-  ENCODED_PASSWORD=$(urlencode "$POSTGRES_PASSWORD")
+  # URL encode the password using Node.js (handles special characters)
+  ENCODED_PASSWORD=$(node -e "process.stdout.write(encodeURIComponent(process.argv[1]))" "$POSTGRES_PASSWORD")
 
   # Construct DATABASE_URL
   export DATABASE_URL="postgresql://${POSTGRES_USER}:${ENCODED_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?schema=public"
@@ -55,4 +37,3 @@ echo "🎉 Starting server..."
 
 # Start the application
 exec node dist/server.js
-

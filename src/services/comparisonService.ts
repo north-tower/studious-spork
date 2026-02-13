@@ -1,6 +1,7 @@
 import prisma from '../config/database';
 import { ComparisonResult } from '../types';
 import { fetchMultipleRetailersDeliveryInfo } from './aiService';
+import { getVerifiedShippingUrl } from '../utils/retailerUrls';
 
 /**
  * Compare retailers using AI agent to fetch delivery information
@@ -33,7 +34,9 @@ export const compareRetailers = async (
   // Transform AI responses to ComparisonResult format
   console.log(`🔄 [Comparison Service] Processing and transforming AI responses...`);
   const results: ComparisonResult[] = deliveryInfos.map((info, index) => {
+    const verifiedUrl = getVerifiedShippingUrl(info.retailerName);
     console.log(`   Processing ${index + 1}/${deliveryInfos.length}: ${info.retailerName} (${info.methods.length} method(s))`);
+    console.log(`      Source URL: ${verifiedUrl ? `✅ Verified → ${verifiedUrl}` : `⚠️  AI-provided → ${info.sourceUrl || 'none'}`}`);
     // Find cheapest option
     let cheapestOption: { method: string; cost: string; duration: string } | undefined;
 
@@ -69,6 +72,8 @@ export const compareRetailers = async (
         name: info.countryName,
         code: countryCode || '',
       },
+      sourceUrl: getVerifiedShippingUrl(info.retailerName) || info.sourceUrl,
+      dataTimestamp: new Date().toISOString(),
       methods: info.methods.map((method) => ({
         method: method.method,
         cost: method.cost,

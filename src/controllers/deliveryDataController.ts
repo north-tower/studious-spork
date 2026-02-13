@@ -28,7 +28,7 @@ export const getAllDeliveryData = asyncHandler(async (req: Request, res: Respons
 });
 
 export const getDeliveryDataById = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   const deliveryData = await prisma.deliveryData.findUnique({
     where: { id },
@@ -86,7 +86,7 @@ export const createDeliveryData = asyncHandler(async (req: Request, res: Respons
 });
 
 export const updateDeliveryData = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const {
     method,
     cost,
@@ -118,7 +118,7 @@ export const updateDeliveryData = asyncHandler(async (req: Request, res: Respons
 });
 
 export const deleteDeliveryData = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   await prisma.deliveryData.delete({
     where: { id },

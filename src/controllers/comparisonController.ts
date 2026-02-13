@@ -125,7 +125,7 @@ export const getComparisonHistory = asyncHandler(async (req: AuthRequest, res: R
 });
 
 export const getComparisonByIdController = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const userId = req.user?.id;
 
   if (!userId) {

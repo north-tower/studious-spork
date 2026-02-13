@@ -7,6 +7,7 @@ const openai = new OpenAI({
 export interface RetailerDeliveryInfo {
   retailerName: string;
   countryName: string;
+  sourceUrl?: string; // URL where the delivery data was sourced from
   methods: {
     method: string;
     cost: string;
@@ -116,6 +117,7 @@ Return the JSON response now:`;
     const deliveryInfo: RetailerDeliveryInfo = {
       retailerName: parsedResponse.retailerName || retailerName,
       countryName: parsedResponse.countryName || countryName,
+      sourceUrl: parsedResponse.sourceUrl || undefined,
       methods: Array.isArray(parsedResponse.methods) 
         ? parsedResponse.methods.map((method: any) => ({
             method: method.method || 'Standard Shipping',

@@ -16,7 +16,7 @@ export const getAllCountries = asyncHandler(async (_req: Request, res: Response)
 });
 
 export const getCountryById = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   const country = await prisma.country.findUnique({
     where: { id },

@@ -86,7 +86,6 @@ app.use('/api/countries', countryRoutes);
 app.use('/api/delivery-data', deliveryDataRoutes);
 app.use('/api/compare', comparisonRoutes);
 app.use('/api/upload', uploadRoutes);
-
 // 404 handler
 app.use(notFoundHandler);
 

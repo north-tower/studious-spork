@@ -20,6 +20,8 @@ export interface ComparisonResult {
     name: string;
     code: string;
   };
+  sourceUrl?: string;
+  dataTimestamp: string;
   methods: {
     method: string;
     cost: string;

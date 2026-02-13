@@ -28,7 +28,7 @@ export const getAllRetailers = asyncHandler(async (req: Request, res: Response) 
 });
 
 export const getRetailerById = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   const retailer = await prisma.retailer.findUnique({
     where: { id },
@@ -65,7 +65,7 @@ export const createRetailer = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const updateRetailer = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { name } = req.body;
 
   if (!name) {
@@ -82,7 +82,7 @@ export const updateRetailer = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const deleteRetailer = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   await prisma.retailer.delete({
     where: { id },

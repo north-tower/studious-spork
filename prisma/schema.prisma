@@ -21,6 +21,7 @@ model User {
 model Retailer {
   id        String   @id @default(uuid())
   name      String   @unique
+  website   String?  // Retailer's main website URL
   createdAt DateTime @default(now())
   deliveryData DeliveryData[]
 }
@@ -45,6 +46,7 @@ model DeliveryData {
   additionalNotes         String?
   dataSource              String   @default("web_search")
   status                  String   @default("verified") // verified, partial_data, requires_verification
+  sourceUrl               String?  // URL where the delivery data was sourced from
   timestamp               DateTime @default(now())
   
   retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)

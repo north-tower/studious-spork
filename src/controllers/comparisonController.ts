@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import prisma from '../config/database';
 import { AuthRequest } from '../types';
 import { asyncHandler } from '../middleware/errorHandler';
 import {
@@ -9,17 +8,21 @@ import {
   getComparisonById,
 } from '../services/comparisonService';
 
+const isCountryCode = (value: string): boolean => /^[A-Za-z]{2}$/.test(value);
+const buildTraceId = (): string => `cmp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+
 export const compare = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { retailers, country, currency } = req.body;
   const userId = req.user?.id;
   const startTime = Date.now();
+  const traceId = buildTraceId();
 
-  console.log('\n🔄 ========== COMPARISON REQUEST STARTED ==========');
-  console.log(`📅 Timestamp: ${new Date().toISOString()}`);
-  console.log(`👤 User ID: ${userId}`);
-  console.log(`🛒 Retailers: ${JSON.stringify(retailers)}`);
-  console.log(`🌍 Country: ${country}`);
-  console.log(`💵 Currency: ${currency || 'Not specified (will use retailer default)'}`);
+  console.log(`\n[Trace ${traceId}] 🔄 ========== COMPARISON REQUEST STARTED ==========`);  
+  console.log(`[Trace ${traceId}] 📅 Timestamp: ${new Date().toISOString()}`);
+  console.log(`[Trace ${traceId}] 👤 User ID: ${userId}`);
+  console.log(`[Trace ${traceId}] 🛒 Retailers: ${JSON.stringify(retailers)}`);
+  console.log(`[Trace ${traceId}] 🌍 Country: ${country}`);
+  console.log(`[Trace ${traceId}] 💵 Currency: ${currency || 'Not specified (will use retailer default)'}`);
 
   if (!userId) {
     console.log('❌ Error: Unauthorized - No user ID');
@@ -53,60 +56,67 @@ export const compare = asyncHandler(async (req: AuthRequest, res: Response) => {
     return;
   }
 
-  // Country can be either an ID (for existing countries) or a name
-  // Try to find country by ID first, then by name
-  let countryRecord = await prisma.country.findUnique({
-    where: { id: country },
-  });
+  // Real-time mode: do not resolve country via DB.
+  // Accept either country name ("Austria") or ISO code ("AT") directly.
+  const normalizedCountry = String(country).trim();
+  const countryCode = isCountryCode(normalizedCountry)
+    ? normalizedCountry.toUpperCase()
+    : undefined;
+  const countryName = countryCode ? normalizedCountry.toUpperCase() : normalizedCountry;
 
-  if (!countryRecord) {
-    // Try to find by name
-    countryRecord = await prisma.country.findFirst({
-      where: { name: { equals: country, mode: 'insensitive' } },
-    });
-  }
+  const normalizedRetailers = retailers
+    .map((r: string) => r.trim())
+    .filter((r: string) => r.length > 0);
 
-  // If country not found in DB, we'll use the provided name/code
-  const countryName = countryRecord?.name || country;
-  const countryCode = countryRecord?.code;
-
-  console.log(`🌍 Resolved Country: ${countryName}${countryCode ? ` (${countryCode})` : ''}`);
-  console.log(`🤖 Starting AI comparison for ${retailers.length} retailer(s)...`);
+  console.log(`[Trace ${traceId}] 🌍 Resolved Country: ${countryName}${countryCode ? ` (${countryCode})` : ''}`);
+  console.log(`[Trace ${traceId}] 🤖 Starting AI comparison for ${normalizedRetailers.length} retailer(s)...`);
 
   // Perform comparison using AI agent
   // retailers is now an array of retailer names
   const results = await compareRetailers(
-    retailers.map((r: string) => r.trim()),
+    normalizedRetailers,
     countryName,
     countryCode,
-    currency // Pass currency to comparison service
+    currency, // Pass currency to comparison service
+    traceId
   );
 
   const comparisonTime = Date.now() - startTime;
-  console.log(`✅ Comparison completed in ${comparisonTime}ms`);
-  console.log(`📊 Results: ${results.length} retailer(s) with delivery data`);
+  console.log(`[Trace ${traceId}] ✅ Comparison completed in ${comparisonTime}ms`);
+  console.log(`[Trace ${traceId}] 📊 Results: ${results.length} retailer(s) with delivery data`);
   results.forEach((result, index) => {
-    console.log(`   ${index + 1}. ${result.retailer.name}: ${result.methods.length} method(s)`);
+    console.log(`[Trace ${traceId}]   ${index + 1}. ${result.retailer.name}: ${result.methods.length} method(s)`);
     if (result.cheapestOption) {
-      console.log(`      Cheapest: ${result.cheapestOption.method} - ${result.cheapestOption.cost} (${result.cheapestOption.duration})`);
+      console.log(`[Trace ${traceId}]      Cheapest: ${result.cheapestOption.method} - ${result.cheapestOption.cost} (${result.cheapestOption.duration})`);
     }
   });
 
-  // Save comparison to history
-  const comparison = await saveComparison(userId, retailers, countryName, results);
+  const persistComparisons = process.env.PERSIST_COMPARISON_HISTORY === 'true';
+  const responseCreatedAt = new Date().toISOString();
+  let comparisonId = `live-${Date.now()}`;
+  let createdAt = responseCreatedAt;
+
+  // Optional persistence (disabled by default to keep comparison path real-time only)
+  if (persistComparisons) {
+    const comparison = await saveComparison(userId, normalizedRetailers, countryName, results);
+    comparisonId = comparison.id;
+    createdAt = comparison.createdAt.toISOString();
+    console.log(`[Trace ${traceId}] 💾 Comparison saved to history (ID: ${comparison.id})`);
+  } else {
+    console.log(`[Trace ${traceId}] ⚡ Skipping DB persistence for comparison (PERSIST_COMPARISON_HISTORY != true)`);
+  }
 
   const totalTime = Date.now() - startTime;
-  console.log(`💾 Comparison saved to history (ID: ${comparison.id})`);
-  console.log(`⏱️  Total request time: ${totalTime}ms`);
-  console.log('✅ ========== COMPARISON REQUEST COMPLETED ==========\n');
+  console.log(`[Trace ${traceId}] ⏱️  Total request time: ${totalTime}ms`);
+  console.log(`[Trace ${traceId}] ✅ ========== COMPARISON REQUEST COMPLETED ==========\n`);
 
   res.json({
     comparison: {
-      id: comparison.id,
-      retailers,
+      id: comparisonId,
+      retailers: normalizedRetailers,
       country: countryName,
       results,
-      createdAt: comparison.createdAt,
+      createdAt,
     },
   });
 });

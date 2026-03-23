@@ -1,8 +1,18 @@
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+const isVerboseFetchLogsEnabled = (): boolean => process.env.VERBOSE_FETCH_LOGS === 'true';
+
+const logVerbose = (traceId: string | undefined, message: string): void => {
+  if (!isVerboseFetchLogsEnabled()) {
+    return;
+  }
+  const prefix = traceId ? `[Trace ${traceId}] ` : '';
+  console.log(`${prefix}${message}`);
+};
 
 export interface RetailerDeliveryInfo {
   retailerName: string;
@@ -19,41 +29,47 @@ export interface RetailerDeliveryInfo {
 }
 
 /**
- * Fetches delivery information for a retailer in a specific country using OpenAI
+ * Fetches delivery information for a retailer in a specific country using
+ * Anthropic Claude with the web_search tool for live, up-to-date data.
  */
 export const fetchRetailerDeliveryInfo = async (
   retailerName: string,
   countryName: string,
   countryCode?: string,
-  currency?: string
+  currency?: string,
+  traceId?: string
 ): Promise<RetailerDeliveryInfo> => {
   const requestStartTime = Date.now();
   const currencyInfo = currency ? ` in ${currency}` : '';
-  console.log(`\n🤖 [AI Service] Fetching delivery info for: ${retailerName} → ${countryName}${countryCode ? ` (${countryCode})` : ''}${currencyInfo}`);
+  const tracePrefix = traceId ? `[Trace ${traceId}] ` : '';
+  console.log(`\n${tracePrefix}🤖 [AI Service] Fetching delivery info for: ${retailerName} → ${countryName}${countryCode ? ` (${countryCode})` : ''}${currencyInfo}`);
 
-  if (!process.env.OPENAI_API_KEY) {
-    console.error(`❌ [AI Service] OPENAI_API_KEY not configured`);
-    throw new Error('OPENAI_API_KEY is not configured');
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error(`❌ [AI Service] ANTHROPIC_API_KEY not configured`);
+    throw new Error('ANTHROPIC_API_KEY is not configured');
   }
 
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-  console.log(`   Model: ${model}`);
+  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929';
+  console.log(`${tracePrefix}   Model: ${model}`);
   if (currency) {
-    console.log(`   Currency: ${currency}`);
+    console.log(`${tracePrefix}   Currency: ${currency}`);
   }
 
-  const currencyInstruction = currency 
+  const currencyInstruction = currency
     ? `IMPORTANT: All prices MUST be provided in ${currency} currency. Use the appropriate currency symbol for ${currency}.`
-    : 'Use the retailer\'s default currency for the destination country.';
-  
-  const prompt = `You are a shipping and delivery information expert. Provide accurate delivery information for ${retailerName} shipping to ${countryName}${countryCode ? ` (${countryCode})` : ''}.
+    : "Use the retailer's default currency for the destination country.";
+
+  const prompt = `You are a shipping and delivery information expert. Search the web to find the current, accurate delivery information for ${retailerName} shipping to ${countryName}${countryCode ? ` (${countryCode})` : ''}.
 
 ${currencyInstruction}
 
-Please provide delivery information in the following JSON format:
+Search for "${retailerName} delivery shipping to ${countryName}" and "${retailerName} shipping costs ${countryName}" to get up-to-date information.
+
+After searching, provide the delivery information in the following JSON format (return ONLY valid JSON, no markdown, no extra text):
 {
   "retailerName": "${retailerName}",
   "countryName": "${countryName}",
+  "sourceUrl": "URL of the page where you found the shipping info",
   "methods": [
     {
       "method": "Standard Shipping",
@@ -67,58 +83,97 @@ Please provide delivery information in the following JSON format:
 }
 
 Important guidelines:
-- Provide realistic, current delivery information based on common practices
+- Search the web for the most current delivery information
 - Include multiple shipping methods if available (Standard, Express, Overnight, etc.)
 - ${currency ? `Use ${currency} currency for all prices` : 'Use the appropriate currency for the destination country'}
-- Use actual currency symbols and realistic costs
-- Provide realistic delivery timeframes
-- Include free shipping thresholds if applicable (use the same currency)
-- If information is not available or uncertain, indicate this in additionalNotes
-- Return ONLY valid JSON, no additional text or markdown formatting
+- Use actual currency symbols and realistic costs from the search results
+- Include free shipping thresholds if applicable
 - If the retailer doesn't ship to this country, return an empty methods array with a note in additionalNotes
-
-Return the JSON response now:`;
+- Return ONLY valid JSON`;
 
   try {
-    console.log(`   📤 Sending request to OpenAI...`);
+    logVerbose(traceId, `Prompt preview for ${retailerName}: ${prompt.slice(0, 300).replace(/\s+/g, ' ')}...`);
+    console.log(`${tracePrefix}   📤 Sending request to Anthropic Claude with web search...`);
     const apiStartTime = Date.now();
-    
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-      messages: [
+
+    const response = await anthropic.messages.create({
+      model,
+      max_tokens: 1024,
+      tools: [
         {
-          role: 'system',
-          content: 'You are a helpful assistant that provides accurate shipping and delivery information. Always respond with valid JSON only.',
-        },
+          type: 'web_search_20250305',
+          name: 'web_search',
+          max_uses: 3,
+        } as any,
+      ],
+      messages: [
         {
           role: 'user',
           content: prompt,
         },
       ],
-      temperature: 0.3, // Lower temperature for more consistent, factual responses
-      response_format: { type: 'json_object' },
     });
 
     const apiTime = Date.now() - apiStartTime;
-    console.log(`   ✅ Received response from OpenAI in ${apiTime}ms`);
-    console.log(`   📊 Tokens used: ${completion.usage?.total_tokens || 'N/A'} (prompt: ${completion.usage?.prompt_tokens || 'N/A'}, completion: ${completion.usage?.completion_tokens || 'N/A'})`);
+    console.log(`${tracePrefix}   ✅ Received response from Claude in ${apiTime}ms`);
+    console.log(`${tracePrefix}   📊 Tokens used: ${response.usage?.input_tokens + response.usage?.output_tokens || 'N/A'} (input: ${response.usage?.input_tokens || 'N/A'}, output: ${response.usage?.output_tokens || 'N/A'})`);
 
-    const responseContent = completion.choices[0]?.message?.content;
-    if (!responseContent) {
-      console.error(`   ❌ No response content from OpenAI`);
-      throw new Error('No response from OpenAI');
+    // Extract the final text response from Claude (the JSON block)
+    let responseContent: string | undefined;
+    let citedSourceUrl: string | undefined;
+
+    for (const block of response.content) {
+      if (block.type === 'text') {
+        responseContent = block.text;
+      }
+      // Extract the first cited source URL from web search results
+      if ((block as any).type === 'web_search_tool_result' && !citedSourceUrl) {
+        const results = (block as any).content;
+        if (Array.isArray(results) && results.length > 0) {
+          citedSourceUrl = results[0]?.url;
+        }
+      }
     }
 
-    // Parse the JSON response
-    console.log(`   🔄 Parsing JSON response...`);
-    const parsedResponse = JSON.parse(responseContent);
-    
+    if (!responseContent) {
+      console.error(`${tracePrefix}   ❌ No text response from Claude`);
+      throw new Error('No response from Anthropic Claude');
+    }
+
+    logVerbose(traceId, `Raw response for ${retailerName}: ${responseContent.slice(0, 800)}${responseContent.length > 800 ? '...' : ''}`);
+
+    // Parse the JSON response — Claude sometimes adds preamble text before/after the JSON,
+    // so we extract the first complete JSON object found in the response.
+    console.log(`${tracePrefix}   🔄 Parsing JSON response...`);
+
+    // 1. Strip markdown code fences if present
+    let jsonText = responseContent
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    // 2. If the text doesn't start with '{', find the first '{' and last '}' to extract the JSON object
+    if (!jsonText.startsWith('{')) {
+      const start = jsonText.indexOf('{');
+      const end = jsonText.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        jsonText = jsonText.slice(start, end + 1);
+        console.log(`${tracePrefix}   ℹ️  Extracted JSON from position ${start} to ${end + 1} (Claude added preamble text)`);
+      } else {
+        console.error(`${tracePrefix}   ❌ Could not locate JSON object in Claude response`);
+        throw new Error('Claude response did not contain a valid JSON object');
+      }
+    }
+
+    const parsedResponse = JSON.parse(jsonText);
+
     // Validate and structure the response
     const deliveryInfo: RetailerDeliveryInfo = {
       retailerName: parsedResponse.retailerName || retailerName,
       countryName: parsedResponse.countryName || countryName,
-      sourceUrl: parsedResponse.sourceUrl || undefined,
-      methods: Array.isArray(parsedResponse.methods) 
+      sourceUrl: parsedResponse.sourceUrl || citedSourceUrl || undefined,
+      methods: Array.isArray(parsedResponse.methods)
         ? parsedResponse.methods.map((method: any) => ({
             method: method.method || 'Standard Shipping',
             cost: method.cost || 'N/A',
@@ -131,22 +186,21 @@ Return the JSON response now:`;
     };
 
     const totalTime = Date.now() - requestStartTime;
-    console.log(`   ✅ Successfully processed ${deliveryInfo.methods.length} delivery method(s)`);
-    console.log(`   ⏱️  Total time: ${totalTime}ms`);
-    
-    // Log methods summary
+    console.log(`${tracePrefix}   ✅ Successfully processed ${deliveryInfo.methods.length} delivery method(s)`);
+    console.log(`${tracePrefix}   🔗 Source URL: ${deliveryInfo.sourceUrl || 'none'}`);
+    console.log(`${tracePrefix}   ⏱️  Total time: ${totalTime}ms`);
+
     deliveryInfo.methods.forEach((method, idx) => {
-      console.log(`      ${idx + 1}. ${method.method}: ${method.cost} (${method.duration})`);
+      console.log(`${tracePrefix}      ${idx + 1}. ${method.method}: ${method.cost} (${method.duration})`);
     });
 
     return deliveryInfo;
   } catch (error) {
     const totalTime = Date.now() - requestStartTime;
-    console.error(`   ❌ [AI Service] Error after ${totalTime}ms:`, error);
-    console.error(`   Error details:`, error instanceof Error ? error.message : String(error));
-    
-    // Return a fallback response with error information
-    console.log(`   ⚠️  Returning fallback response`);
+    console.error(`${tracePrefix}   ❌ [AI Service] Error after ${totalTime}ms:`, error);
+    console.error(`${tracePrefix}   Error details:`, error instanceof Error ? error.message : String(error));
+
+    console.log(`${tracePrefix}   ⚠️  Returning fallback response`);
     return {
       retailerName,
       countryName,
@@ -169,28 +223,30 @@ export const fetchMultipleRetailersDeliveryInfo = async (
   retailerNames: string[],
   countryName: string,
   countryCode?: string,
-  currency?: string
+  currency?: string,
+  traceId?: string
 ): Promise<RetailerDeliveryInfo[]> => {
   const parallelStartTime = Date.now();
-  console.log(`\n🚀 [AI Service] Starting parallel fetch for ${retailerNames.length} retailer(s)`);
-  console.log(`   Retailers: ${retailerNames.join(', ')}`);
-  console.log(`   Country: ${countryName}${countryCode ? ` (${countryCode})` : ''}`);
+  const tracePrefix = traceId ? `[Trace ${traceId}] ` : '';
+  console.log(`\n${tracePrefix}🚀 [AI Service] Starting parallel fetch for ${retailerNames.length} retailer(s)`);
+  console.log(`${tracePrefix}   Retailers: ${retailerNames.join(', ')}`);
+  console.log(`${tracePrefix}   Country: ${countryName}${countryCode ? ` (${countryCode})` : ''}`);
   if (currency) {
-    console.log(`   Currency: ${currency}`);
+    console.log(`${tracePrefix}   Currency: ${currency}`);
   }
-  
+
   // Fetch all retailers in parallel for better performance
   const promises = retailerNames.map((retailerName, index) => {
-    console.log(`   Queueing request ${index + 1}/${retailerNames.length}: ${retailerName}`);
-    return fetchRetailerDeliveryInfo(retailerName, countryName, countryCode, currency);
+    console.log(`${tracePrefix}   Queueing request ${index + 1}/${retailerNames.length}: ${retailerName}`);
+    return fetchRetailerDeliveryInfo(retailerName, countryName, countryCode, currency, traceId);
   });
 
-  console.log(`   ⏳ Waiting for all ${retailerNames.length} AI requests to complete...`);
+  console.log(`${tracePrefix}   ⏳ Waiting for all ${retailerNames.length} Claude+WebSearch requests to complete...`);
   const results = await Promise.all(promises);
-  
+
   const parallelTime = Date.now() - parallelStartTime;
-  console.log(`✅ [AI Service] All ${results.length} requests completed in ${parallelTime}ms`);
-  console.log(`   Average time per retailer: ${Math.round(parallelTime / retailerNames.length)}ms\n`);
+  console.log(`${tracePrefix}✅ [AI Service] All ${results.length} requests completed in ${parallelTime}ms`);
+  console.log(`${tracePrefix}   Average time per retailer: ${Math.round(parallelTime / retailerNames.length)}ms\n`);
 
   return results;
 };

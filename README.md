@@ -14,7 +14,7 @@ A Node.js + Express + TypeScript backend API for comparing retailer delivery opt
 - **bcrypt** - Password hashing
 - **Multer** - File upload handling
 - **csv-parser** - CSV file parsing
-- **OpenAI** - AI agent for fetching retailer delivery information
+- **Anthropic Claude** - AI agent with live web search for fetching retailer delivery information
 - **Swagger/OpenAPI** - API documentation
 
 ## Features
@@ -55,8 +55,8 @@ Edit `.env` with your configuration:
 ```
 DATABASE_URL="postgresql://user:password@localhost:5432/retailer_comparison?schema=public"
 JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
-OPENAI_API_KEY="your-openai-api-key"
-OPENAI_MODEL="gpt-4o-mini"  # Optional, defaults to gpt-4o-mini
+ANTHROPIC_API_KEY="your-anthropic-api-key"
+ANTHROPIC_MODEL="claude-sonnet-4-5-20250929"  # Optional, defaults to claude-sonnet-4-5-20250929
 PORT=3000
 NODE_ENV=development
 CORS_ORIGIN="*"
@@ -136,7 +136,7 @@ The Swagger documentation provides:
   - Body: `{ retailers: string[], country: string }`
   - `retailers`: Array of retailer names (e.g., ["Amazon", "eBay", "Walmart"])
   - `country`: Country name or ID
-  - Uses OpenAI to fetch real-time delivery information
+  - Uses Anthropic Claude with web search to fetch live, real-time delivery information
 - `GET /api/compare/history` - Get user's comparison history (protected)
 - `GET /api/compare/:id` - Get specific comparison result (protected)
 
@@ -186,7 +186,7 @@ backend/
 │   ├── services/
 │   │   ├── authService.ts
 │   │   ├── csvService.ts        # CSV parsing and processing
-│   │   ├── aiService.ts         # OpenAI integration for fetching delivery info
+│   │   ├── aiService.ts         # Anthropic Claude + web search for live delivery info
 │   │   └── comparisonService.ts # Comparison logic using AI agent
 │   ├── types/
 │   │   └── index.ts             # TypeScript types

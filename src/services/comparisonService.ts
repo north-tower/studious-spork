@@ -10,12 +10,14 @@ export const compareRetailers = async (
   retailerNames: string[],
   countryName: string,
   countryCode?: string,
-  currency?: string
+  currency?: string,
+  traceId?: string
 ): Promise<ComparisonResult[]> => {
-  console.log(`\n📦 [Comparison Service] Starting comparison for ${retailerNames.length} retailer(s)`);
-  console.log(`   Retailers: ${retailerNames.join(', ')}`);
-  console.log(`   Country: ${countryName}${countryCode ? ` (${countryCode})` : ''}`);
-  console.log(`   Currency: ${currency || 'Not specified (will use retailer default)'}`);
+  const tracePrefix = traceId ? `[Trace ${traceId}] ` : '';
+  console.log(`\n${tracePrefix}📦 [Comparison Service] Starting comparison for ${retailerNames.length} retailer(s)`);
+  console.log(`${tracePrefix}   Retailers: ${retailerNames.join(', ')}`);
+  console.log(`${tracePrefix}   Country: ${countryName}${countryCode ? ` (${countryCode})` : ''}`);
+  console.log(`${tracePrefix}   Currency: ${currency || 'Not specified (will use retailer default)'}`);
 
   const aiStartTime = Date.now();
   
@@ -24,19 +26,20 @@ export const compareRetailers = async (
     retailerNames,
     countryName,
     countryCode,
-    currency
+    currency,
+    traceId
   );
 
   const aiTime = Date.now() - aiStartTime;
-  console.log(`🤖 [Comparison Service] AI requests completed in ${aiTime}ms`);
-  console.log(`   Received data for ${deliveryInfos.length} retailer(s)`);
+  console.log(`${tracePrefix}🤖 [Comparison Service] AI requests completed in ${aiTime}ms`);
+  console.log(`${tracePrefix}   Received data for ${deliveryInfos.length} retailer(s)`);
 
   // Transform AI responses to ComparisonResult format
-  console.log(`🔄 [Comparison Service] Processing and transforming AI responses...`);
+  console.log(`${tracePrefix}🔄 [Comparison Service] Processing and transforming AI responses...`);
   const results: ComparisonResult[] = deliveryInfos.map((info, index) => {
     const verifiedUrl = getVerifiedShippingUrl(info.retailerName);
-    console.log(`   Processing ${index + 1}/${deliveryInfos.length}: ${info.retailerName} (${info.methods.length} method(s))`);
-    console.log(`      Source URL: ${verifiedUrl ? `✅ Verified → ${verifiedUrl}` : `⚠️  AI-provided → ${info.sourceUrl || 'none'}`}`);
+    console.log(`${tracePrefix}   Processing ${index + 1}/${deliveryInfos.length}: ${info.retailerName} (${info.methods.length} method(s))`);
+    console.log(`${tracePrefix}      Source URL: ${verifiedUrl ? `✅ Verified → ${verifiedUrl}` : `⚠️  AI-provided → ${info.sourceUrl || 'none'}`}`);
     // Find cheapest option
     let cheapestOption: { method: string; cost: string; duration: string } | undefined;
 
@@ -87,7 +90,7 @@ export const compareRetailers = async (
   });
 
   // Sort results by cheapest option cost
-  console.log(`📊 [Comparison Service] Sorting results by cheapest option...`);
+  console.log(`${tracePrefix}📊 [Comparison Service] Sorting results by cheapest option...`);
   results.sort((a, b) => {
     if (!a.cheapestOption || !b.cheapestOption) return 0;
     
@@ -100,7 +103,7 @@ export const compareRetailers = async (
     return costA - costB;
   });
 
-  console.log(`✅ [Comparison Service] Comparison complete. Returning ${results.length} result(s)`);
+  console.log(`${tracePrefix}✅ [Comparison Service] Comparison complete. Returning ${results.length} result(s)`);
   return results;
 };
 
